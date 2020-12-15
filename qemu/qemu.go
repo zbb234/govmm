@@ -401,6 +401,86 @@ func (cdev CharDevice) QemuParams(config *Config) []string {
 	return qemuParams
 }
 
+// CharSerialDevice represents a qemu character device.
+type CharSerialDevice struct {
+	Backend CharDeviceBackend
+
+	ID   string
+	Path string
+	Name string
+
+	// serial
+	Chardev string
+}
+
+// Valid returns true if the CharSerialDevice structure is valid and complete.
+func (csdev CharSerialDevice) Valid() bool {
+	if csdev.ID == "" || csdev.Path == "" {
+		return false
+	}
+
+	return true
+}
+
+// QemuParams returns the qemu parameters built out of this character device.
+func (csdev CharSerialDevice) QemuParams(config *Config) []string {
+	var csdevParams []string
+	var serialParams []string
+	var qemuParams []string
+
+	serialParams = append(serialParams, fmt.Sprintf("chardev:%s", csdev.Chardev))
+
+	csdevParams = append(csdevParams, string(csdev.Backend))
+	csdevParams = append(csdevParams, fmt.Sprintf(",id=%s", csdev.ID))
+	if csdev.Backend == Socket {
+		csdevParams = append(csdevParams, fmt.Sprintf(",path=%s,server,nowait", csdev.Path))
+	} else {
+		csdevParams = append(csdevParams, fmt.Sprintf(",path=%s", csdev.Path))
+	}
+
+	qemuParams = append(qemuParams, "-serial")
+	qemuParams = append(qemuParams, strings.Join(serialParams, ""))
+
+	qemuParams = append(qemuParams, "-chardev")
+	qemuParams = append(qemuParams, strings.Join(csdevParams, ""))
+
+	return qemuParams
+}
+
+// Driver represents a qemu driver
+type Driver struct {
+	File     string
+	If       string
+	Format   string
+	Unit     uint32
+	ReadOnly bool
+}
+
+// Valid returns true if the DriverParam structure is valid and complete.
+func (drive Driver) Valid() bool {
+	return true
+}
+
+// QemuParams returns the qemu parameters built out of this driver.
+func (drive Driver) QemuParams(config *Config) []string {
+	var driveParams []string
+	var qemuParams []string
+
+	driveParams = append(driveParams, fmt.Sprintf("file=%s", drive.File))
+	driveParams = append(driveParams, fmt.Sprintf(",if=%s", drive.If))
+	driveParams = append(driveParams, fmt.Sprintf(",format=%s", drive.Format))
+	driveParams = append(driveParams, fmt.Sprintf(",unit=%d", drive.Unit))
+
+	if drive.ReadOnly {
+		driveParams = append(driveParams, ",readonly")
+	}
+
+	qemuParams = append(qemuParams, "-drive")
+	qemuParams = append(qemuParams, strings.Join(driveParams, ""))
+
+	return qemuParams
+}
+
 // NetDeviceType is a qemu networking device type.
 type NetDeviceType string
 
@@ -731,6 +811,9 @@ type BlockDevice struct {
 
 	// ShareRW enables multiple qemu instances to share the File
 	ShareRW bool
+
+	// ReadOnly sets the block device in readonly mode
+	ReadOnly bool
 }
 
 // Valid returns true if the BlockDevice structure is valid and complete.
@@ -778,6 +861,10 @@ func (blkdev BlockDevice) QemuParams(config *Config) []string {
 	blkParams = append(blkParams, fmt.Sprintf(",aio=%s", blkdev.AIO))
 	blkParams = append(blkParams, fmt.Sprintf(",format=%s", blkdev.Format))
 	blkParams = append(blkParams, fmt.Sprintf(",if=%s", blkdev.Interface))
+
+	if blkdev.ReadOnly {
+		blkParams = append(blkParams, ",readonly")
+	}
 
 	qemuParams = append(qemuParams, "-device")
 	qemuParams = append(qemuParams, strings.Join(deviceParams, ""))
